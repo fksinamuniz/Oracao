@@ -1,220 +1,560 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import useLocalStorage from './hooks/useLocalStorage';
-import { Campaign } from './types';
-import CampaignForm from './components/CampaignForm';
-import Calendar from './components/Calendar';
-
-const SunIcon: React.FC<{className?: string}> = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>;
-const MoonIcon: React.FC<{className?: string}> = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>;
-const UploadIcon: React.FC<{className?: string}> = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>;
-const DownloadIcon: React.FC<{className?: string}> = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
-const EditIcon: React.FC<{className?: string}> = ({className}) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>;
-
-function App() {
-  const [campaign, setCampaign] = useLocalStorage<Campaign | null>('prayerCampaign', null);
-  const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('theme', 'light');
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-  
-  useEffect(() => {
-    if(campaign) {
-      setCurrentMonth(new Date(campaign.startDate + 'T00:00:00'));
-    }
-  }, [campaign?.startDate]);
-
-  const toggleTheme = () => {
-    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-  };
-
-  const handleStartCampaign = (data: Omit<Campaign, 'completedDays'>) => {
-    setCampaign({ ...data, completedDays: [] });
-  };
-  
-  const handleUpdateCampaign = (data: Omit<Campaign, 'completedDays'>) => {
-    if(campaign) {
-        // Keep completed days that are within the new date range
-        const start = new Date(data.startDate + 'T00:00:00');
-        const end = new Date(start);
-        end.setDate(start.getDate() + data.duration - 1);
-
-        const newCompletedDays = campaign.completedDays.filter(day => {
-            const d = new Date(day + 'T00:00:00');
-            return d >= start && d <= end;
-        });
-        
-        setCampaign({ ...campaign, ...data, completedDays: newCompletedDays });
-    }
-    setIsEditing(false);
-  }
-
-  const handleToggleDay = (date: string) => {
-    if (!campaign) return;
-    const updatedCompletedDays = campaign.completedDays.includes(date)
-      ? campaign.completedDays.filter(d => d !== date)
-      : [...campaign.completedDays, date];
-    setCampaign({ ...campaign, completedDays: updatedCompletedDays });
-  };
-  
-  const handleEndCampaign = () => {
-    if (window.confirm('Tem certeza que deseja encerrar a campanha atual?')) {
-      setCampaign(null);
-    }
-  };
-
-  const handleSaveToFile = () => {
-    if (!campaign) return;
-    const dataStr = JSON.stringify(campaign, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-    const exportFileDefaultName = 'campanha-oracao.json';
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-  };
-
-  const handleLoadFileClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleLoadFromFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const result = e.target?.result;
-          if (typeof result === 'string') {
-            const loadedCampaign: Campaign = JSON.parse(result);
-            // Basic validation
-            if (loadedCampaign.purpose && loadedCampaign.duration && loadedCampaign.startDate && Array.isArray(loadedCampaign.completedDays)) {
-              setCampaign(loadedCampaign);
-            } else {
-              alert('Arquivo de campanha inválido.');
-            }
-          }
-        } catch (error) {
-          alert('Erro ao ler o arquivo.');
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Campanha de Oração</title>
+    <!-- Carrega o Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carrega a fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Define a fonte Inter como padrão */
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Fundo gradiente moderno com nuvens */
+            background-color: #eff6ff; /* Fallback */
+            background-image: url('https://www.transparenttextures.com/patterns/simple-clouds.png'), linear-gradient(to bottom right, #eff6ff, #e0e7ff);
+            background-attachment: fixed;
         }
-      };
-      reader.readAsText(file);
-      // Reset file input value to allow loading the same file again
-      event.target.value = '';
-    }
-  };
+        /* Estilo para os dias da semana */
+        .weekday-header {
+            font-size: 0.75rem; /* text-xs */
+            font-weight: 700; /* font-bold */
+            color: #6366f1; /* text-indigo-500 */
+            text-align: center;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+        /* Estilo base para um dia no calendário */
+        .calendar-day {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* height, width, font-size, rounded-full são controlados no JS com Tailwind */
+            transition: all 0.2s ease-in-out;
+            position: relative; /* Para o checkmark */
+        }
+        /* Estilos de estado para os dias */
+        .day-outside-month {
+            color: #9ca3af; /* text-gray-400 */
+            opacity: 0.7;
+        }
+        .day-today {
+            background-color: #6366f1; /* bg-indigo-500 */
+            color: #ffffff; /* text-white */
+            font-weight: 700; /* font-bold */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+        }
+        .day-campaign {
+            background-color: #eef2ff; /* bg-indigo-50 */
+            color: #4338ca; /* text-indigo-700 */
+            border: 1px solid #c7d2fe; /* border border-indigo-200 */
+            cursor: pointer;
+        }
+        .day-campaign:hover {
+            background-color: #e0e7ff; /* bg-indigo-100 */
+            transform: scale(1.05);
+        }
+        .day-completed {
+            background-color: #10b981; /* bg-emerald-500 */
+            color: #ffffff; /* text-white */
+            font-weight: 600; /* font-semibold */
+            cursor: pointer;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); /* shadow-sm */
+        }
+        .day-completed:hover {
+            background-color: #059669; /* bg-emerald-600 */
+        }
+        /* NOVO: Ícone de checkmark para dias concluídos (agora responsivo) */
+        .day-completed::after {
+            content: '✓';
+            font-weight: 700;
+            font-size: 0.6rem; /* Tamanho menor para mobile */
+            position: absolute;
+            top: 4px;       /* Ajuste para mobile */
+            right: 6px;      /* Ajuste para mobile */
+            color: rgba(255, 255, 255, 0.9);
+        }
 
+        /* Media query para telas 'md' e maiores (Tailwind 'md' breakpoint is 768px) */
+        @media (min-width: 768px) {
+            .day-completed::after {
+                font-size: 0.7rem; /* Tamanho original */
+                top: 5px;
+                right: 7px;
+            }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
 
-  const renderCampaign = () => {
-    if (!campaign) return null;
-    const progress = (campaign.completedDays.length / campaign.duration) * 100;
+    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-xl overflow-hidden">
+        <div class="md:flex">
+            <!-- Coluna de Controle (Esquerda) -->
+            <div class="md:w-1/3 p-6 border-r border-gray-200">
+                <h1 class="text-3xl font-bold text-indigo-700 mb-4">Campanha de Oração</h1>
+                
+                <!-- Formulário da Campanha -->
+                <form id="campaign-form" class="space-y-4">
+                    <div>
+                        <label for="purpose" class="block text-sm font-medium text-gray-700">Propósito:</label>
+                        <textarea id="purpose" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Pela família, saúde..."></textarea>
+                    </div>
+                    
+                    <!-- INÍCIO DA CORREÇÃO: Campos Faltando -->
+                    <div>
+                        <label for="totalDays" class="block text-sm font-medium text-gray-700">Duração (dias):</label>
+                        <input type="number" id="totalDays" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Ex: 30">
+                    </div>
+                    
+                    <div>
+                        <label for="startDate" class="block text-sm font-medium text-gray-700">Data de Início:</label>
+                        <input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    </div>
+                    <!-- FIM DA CORREÇÃO -->
+                    
+                    <button type="submit" id="save-button" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50">
+                        Salvar Campanha
+                    </button>
+                </form>
 
-    if (isEditing) {
-        return (
-            <CampaignForm 
-                onSubmit={handleUpdateCampaign}
-                onCancel={() => setIsEditing(false)}
-                initialData={campaign}
-                submitButtonText="Salvar Alterações"
-            />
-        );
-    }
+                <!-- Exibição do Progresso -->
+                <div id="progress-display" class="mt-6 space-y-3 hidden">
+                    <h2 class="text-lg font-semibold text-gray-800">Progresso da Campanha</h2>
+                    <div>
+                        <div class="flex justify-between text-sm font-medium text-gray-600">
+                            <span id="progress-text">0 de 0 dias</span>
+                            <span id="progress-percent">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                            <div id="progress-bar" class="bg-emerald-500 h-2.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        <strong>Início:</strong> <span id="start-date-display">--</span>
+                    </div>
+                    <div class="text-sm text-gray-600">
+                        <strong>Término:</strong> <span id="end-date-display">--</span>
+                    </div>
+                </div>
 
-    return (
-      <div className="space-y-8">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg w-full transition-colors duration-300">
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Propósito:</h2>
-            <button onClick={() => setIsEditing(true)} className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition" aria-label="Editar campanha">
-                <EditIcon className="h-5 w-5" />
-            </button>
-          </div>
-          <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{campaign.purpose}</p>
-          
-          <div className="mt-6">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Progresso</span>
-              <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">{campaign.completedDays.length} / {campaign.duration} dias</span>
+                <!-- Mensagem de carregamento/login -->
+                <div id="loading-message" class="mt-4 text-center text-gray-500">
+                    Carregando dados...
+                </div>
+
             </div>
-            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-              <div className="bg-gradient-to-r from-green-400 to-blue-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+
+            <!-- Coluna do Calendário (Direita) -->
+            <div class="md:w-2/3 p-6">
+                <!-- Header do Calendário -->
+                <div class="flex items-center justify-between mb-4">
+                    <button id="prev-month" aria-label="Mês anterior" class="p-2 rounded-full hover:bg-gray-100">
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                    </button>
+                    <h2 id="month-year-header" class="text-2xl font-semibold text-gray-900"></h2>
+                    <button id="next-month" aria-label="Próximo mês" class="p-2 rounded-full hover:bg-gray-100">
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Dias da Semana -->
+                <div class="grid grid-cols-7 gap-1 mb-2">
+                    <div class="weekday-header">D</div>
+                    <div class="weekday-header">S</div>
+                    <div class="weekday-header">T</div>
+                    <div class="weekday-header">Q</div>
+                    <div class="weekday-header">Q</div>
+                    <div class="weekday-header">S</div>
+                    <div class="weekday-header">S</div>
+                </div>
+
+                <!-- Grid do Calendário -->
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1 place-items-center">
+                    <!-- Dias serão gerados pelo JavaScript -->
+                </div>
             </div>
-          </div>
         </div>
-
-        <Calendar
-          campaign={campaign}
-          onToggleDay={handleToggleDay}
-          currentMonth={currentMonth}
-          setCurrentMonth={setCurrentMonth}
-        />
-        
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button onClick={handleSaveToFile} className="w-full sm:w-auto flex items-center justify-center bg-slate-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 dark:focus:ring-offset-slate-900 transition-transform transform hover:scale-105">
-                <DownloadIcon className="h-5 w-5 mr-2" /> Salvar Dados
-            </button>
-            <button onClick={handleEndCampaign} className="w-full sm:w-auto bg-red-500 text-white font-bold py-2 px-6 rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-slate-900 transition-transform transform hover:scale-105">
-                Encerrar Campanha
-            </button>
-        </div>
-      </div>
-    );
-  };
-  
-  const renderWelcome = () => {
-    return (
-        <div className="text-center">
-            <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg w-full max-w-lg mx-auto mb-8 transition-colors duration-300">
-                <h2 className="text-2xl font-bold mb-6 text-indigo-600 dark:text-indigo-400">Comece sua jornada de oração</h2>
-                <CampaignForm onSubmit={handleStartCampaign} submitButtonText="Iniciar Campanha" />
-            </div>
-             <div className="flex items-center justify-center text-slate-500 dark:text-slate-400">
-                <span className="flex-grow bg-slate-300 dark:bg-slate-700 h-px"></span>
-                <span className="px-4 text-sm">Ou</span>
-                <span className="flex-grow bg-slate-300 dark:bg-slate-700 h-px"></span>
-            </div>
-            <div className="mt-8">
-                <button onClick={handleLoadFileClick} className="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">
-                    <UploadIcon className="h-5 w-5 mr-2" />
-                    Carregar campanha de um arquivo
-                </button>
-                <input type="file" ref={fileInputRef} onChange={handleLoadFromFile} className="hidden" accept=".json"/>
-            </div>
-        </div>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 p-4 sm:p-6 lg:p-8 flex flex-col items-center">
-        <header className="w-full max-w-4xl flex justify-between items-center mb-8">
-            <div className="text-left">
-                <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">
-                    Campanha de Oração
-                </h1>
-                <p className="mt-1 text-base text-slate-600 dark:text-slate-400">
-                    Seu diário de fé e perseverança.
-                </p>
-            </div>
-            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition" aria-label="Toggle theme">
-                {theme === 'light' ? <MoonIcon className="h-6 w-6 text-slate-600"/> : <SunIcon className="h-6 w-6 text-yellow-400"/>}
-            </button>
-        </header>
-        <main className="w-full max-w-4xl">
-            {campaign ? renderCampaign() : renderWelcome()}
-        </main>
-        <footer className="text-center mt-12 text-slate-500 dark:text-slate-500 text-sm">
-            <p>Desenvolvido com fé e tecnologia.</p>
-        </footer>
     </div>
-  );
-}
 
-export default App;
+    <!-- Módulo JavaScript -->
+    <script type="module">
+        // Importações do Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            doc, 
+            setDoc, 
+            onSnapshot,
+            Timestamp,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Configuração do Firebase (Variáveis Globais) ---
+        // Estas variáveis são injetadas pelo ambiente 
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-prayer-app';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, userId, campaignDocRef;
+        let currentDate = new Date();
+        let campaignData = {
+            purpose: "",
+            totalDays: null,
+            startDate: null,
+            completedDays: [] // Armazena como strings ISO (YYYY-MM-DD)
+        };
+
+        // --- Elementos do DOM ---
+        const calendarGrid = document.getElementById('calendar-grid');
+        const monthYearHeader = document.getElementById('month-year-header');
+        const prevMonthBtn = document.getElementById('prev-month');
+        const nextMonthBtn = document.getElementById('next-month');
+        const campaignForm = document.getElementById('campaign-form');
+        const purposeInput = document.getElementById('purpose');
+        const totalDaysInput = document.getElementById('totalDays');
+        const startDateInput = document.getElementById('startDate'); // NOVO
+        const saveButton = document.getElementById('save-button'); // NOVO
+        const progressDisplay = document.getElementById('progress-display');
+        const progressText = document.getElementById('progress-text');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressBar = document.getElementById('progress-bar');
+        const startDateDisplay = document.getElementById('start-date-display');
+        const endDateDisplay = document.getElementById('end-date-display');
+        const loadingMessage = document.getElementById('loading-message');
+
+        // --- Nomes dos Meses (Português) ---
+        const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+        // --- Inicialização do Firebase ---
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('Debug');
+            
+            // Autenticação
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    console.log("Usuário autenticado:", userId);
+                    initializeAppData();
+                } else {
+                    // Tenta login com token customizado ou anônimo
+                    try {
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (error) {
+                        console.error("Erro na autenticação:", error);
+                        loadingMessage.textContent = "Erro ao autenticar.";
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error("Erro ao inicializar Firebase:", error);
+            loadingMessage.textContent = "Erro ao carregar o app.";
+        }
+
+        // --- Lógica Principal (Após Autenticação) ---
+        function initializeAppData() {
+            // Define a referência do documento NOVO
+            const docPath = `/artifacts/${appId}/users/${userId}/prayerCampaigns/current`;
+            campaignDocRef = doc(db, docPath);
+            console.log("Ouvindo o documento:", docPath);
+
+            // Ouve mudanças no documento da campanha
+            onSnapshot(campaignDocRef, (doc) => {
+                loadingMessage.style.display = 'none';
+                if (doc.exists()) {
+                    const data = doc.data();
+                    campaignData = {
+                        purpose: data.purpose || "",
+                        totalDays: data.totalDays || null,
+                        // Converte Timestamp do Firestore para Date do JS
+                        startDate: data.startDate ? data.startDate.toDate() : null,
+                        completedDays: data.completedDays || []
+                    };
+                    console.log("Dados recebidos:", campaignData);
+                } else {
+                    console.log("Nenhum documento encontrado, usando dados padrão.");
+                    // Reseta para o padrão se o documento não existir
+                    campaignData = { purpose: "", totalDays: null, startDate: null, completedDays: [] };
+                }
+                
+                // Atualiza toda a UI com os novos dados
+                updateUI();
+            }, (error) => {
+                console.error("Erro ao ouvir documento:", error);
+                loadingMessage.textContent = "Erro ao carregar dados.";
+            });
+
+            // Adiciona ouvintes de evento
+            prevMonthBtn.addEventListener('click', showPrevMonth);
+            nextMonthBtn.addEventListener('click', showNextMonth);
+            campaignForm.addEventListener('submit', handleSaveCampaign);
+        }
+
+        // --- Funções de Atualização da UI ---
+
+        function updateUI() {
+            renderCalendar();
+            updateCampaignInfo();
+        }
+        
+        /**
+         * Renderiza o calendário para o mês em `currentDate`.
+         */
+        function renderCalendar() {
+            calendarGrid.innerHTML = ''; // Limpa o grid
+            
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth(); // 0-11
+            
+            // Atualiza o header
+            monthYearHeader.textContent = `${monthNames[month]} ${year}`;
+            
+            // Informações do mês
+            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 (Dom) - 6 (Sab)
+            const lastDateOfMonth = new Date(year, month + 1, 0).getDate();
+            const lastDateOfPrevMonth = new Date(year, month, 0).getDate();
+
+            const today = new Date();
+            const todayStr = toISOString(today);
+
+            const campaignEndDate = getCampaignEndDate();
+
+            // 1. Preenche dias do mês anterior
+            for (let i = firstDayOfMonth; i > 0; i--) {
+                const day = lastDateOfPrevMonth - i + 1;
+                calendarGrid.appendChild(createDayElement(day, null, true));
+            }
+
+            // 2. Preenche dias do mês atual
+            for (let day = 1; day <= lastDateOfMonth; day++) {
+                const date = new Date(year, month, day);
+                const dateStr = toISOString(date);
+                
+                // Determina o estado do dia
+                let state = null;
+                // Ajusta a lógica de data para ignorar fuso horário na comparação
+                const campaignStartDate = campaignData.startDate ? new Date(campaignData.startDate.getFullYear(), campaignData.startDate.getMonth(), campaignData.startDate.getDate()) : null;
+                const campaignEndDateClean = campaignEndDate ? new Date(campaignEndDate.getFullYear(), campaignEndDate.getMonth(), campaignEndDate.getDate()) : null;
+                const currentDateClean = new Date(year, month, day);
+
+                const isCampaignDay = campaignStartDate && 
+                                      currentDateClean >= campaignStartDate && 
+                                      currentDateClean <= campaignEndDateClean;
+
+                if (isCampaignDay) {
+                    state = campaignData.completedDays.includes(dateStr) ? 'completed' : 'campaign';
+                } else if (dateStr === todayStr) {
+                    state = 'today';
+                }
+                
+                calendarGrid.appendChild(createDayElement(day, dateStr, false, state));
+            }
+
+            // 3. Preenche dias do próximo mês
+            const daysRendered = firstDayOfMonth + lastDateOfMonth;
+            const nextMonthDays = (7 - (daysRendered % 7)) % 7;
+            for (let day = 1; day <= nextMonthDays; day++) {
+                calendarGrid.appendChild(createDayElement(day, null, true));
+            }
+        }
+
+        /**
+         * Cria um elemento DOM para um dia no calendário.
+         */
+        function createDayElement(day, dateStr, isOutsideMonth, state = null) {
+            const dayDiv = document.createElement('div');
+            // ATUALIZADO: Classes responsivas de tamanho
+            dayDiv.className = 'calendar-day text-xs w-8 h-8 md:text-sm md:w-10 md:h-10 rounded-full';
+            dayDiv.textContent = day;
+
+            if (isOutsideMonth) {
+                dayDiv.classList.add('day-outside-month');
+            } else {
+                switch(state) {
+                    case 'today':
+                        dayDiv.classList.add('day-today');
+                        break;
+                    case 'campaign':
+                        dayDiv.classList.add('day-campaign');
+                        dayDiv.addEventListener('click', () => handleDayClick(dateStr));
+                        break;
+                    case 'completed':
+                        dayDiv.classList.add('day-completed');
+                        dayDiv.addEventListener('click', () => handleDayClick(dateStr));
+                        break;
+                }
+            }
+            return dayDiv;
+        }
+
+        /**
+         * Atualiza o formulário e a barra de progresso.
+         */
+        function updateCampaignInfo() {
+            if (campaignData.startDate) {
+                purposeInput.value = campaignData.purpose;
+                totalDaysInput.value = campaignData.totalDays;
+                startDateInput.value = toISOString(campaignData.startDate); // ATUALIZADO
+
+                const total = campaignData.totalDays || 0;
+                const completed = campaignData.completedDays.length;
+                const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+                progressText.textContent = `${completed} de ${total} dias`;
+                progressPercent.textContent = `${percent}%`;
+                progressBar.style.width = `${percent}%`;
+                
+                startDateDisplay.textContent = campaignData.startDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                const endDate = getCampaignEndDate();
+                endDateDisplay.textContent = endDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+                progressDisplay.classList.remove('hidden');
+                saveButton.textContent = 'Atualizar Campanha'; // NOVO
+            } else {
+                // Esconde o progresso se não houver campanha
+                progressDisplay.classList.add('hidden');
+                purposeInput.value = '';
+                totalDaysInput.value = '';
+                startDateInput.value = ''; // ATUALIZADO
+                saveButton.textContent = 'Salvar Campanha'; // NOVO
+            }
+        }
+
+        // --- Manipuladores de Evento ---
+
+        function showPrevMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        }
+
+        function showNextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        }
+
+        /**
+         * Salva (ou inicia) a campanha no Firestore.
+         */
+        async function handleSaveCampaign(e) {
+            e.preventDefault();
+            const purpose = purposeInput.value;
+            const totalDays = parseInt(totalDaysInput.value);
+            const startDateString = startDateInput.value; // NOVO
+
+            if (!purpose || !totalDays || totalDays < 1 || !startDateString) { // Validação ATUALIZADA
+                console.warn("Propósito, Duração e Data de Início são obrigatórios.");
+                return;
+            }
+
+            // NOVO: Desabilita o botão e mostra loading
+            saveButton.disabled = true;
+            const originalButtonText = saveButton.textContent;
+            saveButton.textContent = 'Salvando...';
+
+            // Converte a string "YYYY-MM-DD" para um objeto Date
+            // new Date(YYYY, MM-1, DD) evita problemas de fuso horário
+            const parts = startDateString.split('-'); 
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Mês é 0-indexado
+            const day = parseInt(parts[2], 10);
+            const startDate = new Date(year, month, day);
+
+            let completedDays = campaignData.completedDays || [];
+            
+            // Verifica se a data de início foi alterada
+            const oldStartDateString = campaignData.startDate ? toISOString(campaignData.startDate) : null;
+            if (oldStartDateString !== startDateString) {
+                // Se a data de início mudou, reinicia a contagem de dias concluídos
+                completedDays = [];
+                console.log("Data de início alterada, dias concluídos resetados.");
+            }
+
+            const newData = {
+                purpose: purpose,
+                totalDays: totalDays,
+                startDate: Timestamp.fromDate(startDate), // ATUALIZADO
+                completedDays: completedDays // ATUALIZADO
+            };
+
+            try {
+                // Usar setDoc (sem merge) para sobrescrever ou criar
+                await setDoc(campaignDocRef, newData);
+                console.log("Campanha salva!");
+            } catch (error) {
+                console.error("Erro ao salvar campanha:", error);
+                saveButton.textContent = originalButtonText; // Restaura em caso de erro
+            } finally {
+                // O onSnapshot vai atualizar o texto, mas reabilitamos o botão
+                saveButton.disabled = false;
+            }
+        }
+
+        /**
+         * Marca ou desmarca um dia como concluído.
+         */
+        async function handleDayClick(dateStr) {
+            if (!campaignDocRef) return; // Proteção
+
+            const completed = campaignData.completedDays || [];
+            let newCompletedDays;
+
+            if (completed.includes(dateStr)) {
+                // Desmarcar: remove o dia da lista
+                newCompletedDays = completed.filter(d => d !== dateStr);
+            } else {
+                // Marcar: adiciona o dia à lista
+                newCompletedDays = [...completed, dateStr];
+            }
+
+            try {
+                // Atualiza apenas o campo completedDays
+                await setDoc(campaignDocRef, { completedDays: newCompletedDays }, { merge: true });
+            } catch (error) {
+                console.error("Erro ao marcar dia:", error);
+            }
+        }
+
+        // --- Funções Utilitárias ---
+
+        /**
+         * Converte um objeto Date para uma string YYYY-MM-DD (compatível com UTC).
+         */
+        function toISOString(date) {
+            // Garante que a data não seja afetada pelo fuso horário na conversão
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        /**
+         * Calcula a data de término da campanha.
+         */
+        function getCampaignEndDate() {
+            if (!campaignData.startDate) return null;
+            
+            const endDate = new Date(campaignData.startDate.getTime());
+            // Adiciona (totalDays - 1) pois o startDate já conta como dia 1
+            endDate.setUTCDate(endDate.getUTCDate() + (campaignData.totalDays - 1));
+            return endDate;
+        }
+
+    </script>
+</body>
+</html>
