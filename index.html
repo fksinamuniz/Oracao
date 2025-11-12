@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Aplicativo para controle e acompanhamento de campanhas de oração com calendário interativo">
     <title>Controle de Campanha de Oração</title>
     <!-- Carrega o Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,21 +13,10 @@
         /* Define a fonte Inter como padrão */
         body {
             font-family: 'Inter', sans-serif;
-            /* Fundo gradiente moderno */
-            background-image: linear-gradient(to bottom right, #eff6ff, #e0e7ff);
+            /* Fundo gradiente moderno com nuvens */
+            background-color: #eff6ff; /* Fallback */
+            background-image: url('https://www.transparenttextures.com/patterns/simple-clouds.png'), linear-gradient(to bottom right, #eff6ff, #e0e7ff);
             background-attachment: fixed;
-        }
-        /* Classe para conteúdo apenas para leitores de tela */
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border-width: 0;
         }
         /* Estilo para os dias da semana */
         .weekday-header {
@@ -44,10 +32,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 2.5rem; /* h-10 */
-            width: 2.5rem;  /* w-10 */
-            border-radius: 9999px; /* rounded-full */
-            font-size: 0.875rem; /* text-sm */
+            /* height, width, font-size, rounded-full são controlados no JS com Tailwind */
             transition: all 0.2s ease-in-out;
             position: relative; /* Para o checkmark */
         }
@@ -82,15 +67,24 @@
         .day-completed:hover {
             background-color: #059669; /* bg-emerald-600 */
         }
-        /* NOVO: Ícone de checkmark para dias concluídos */
+        /* NOVO: Ícone de checkmark para dias concluídos (agora responsivo) */
         .day-completed::after {
             content: '✓';
             font-weight: 700;
-            font-size: 0.7rem;
+            font-size: 0.6rem; /* Tamanho menor para mobile */
             position: absolute;
-            top: 5px;
-            right: 7px;
+            top: 4px;       /* Ajuste para mobile */
+            right: 6px;      /* Ajuste para mobile */
             color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Media query para telas 'md' e maiores (Tailwind 'md' breakpoint is 768px) */
+        @media (min-width: 768px) {
+            .day-completed::after {
+                font-size: 0.7rem; /* Tamanho original */
+                top: 5px;
+                right: 7px;
+            }
         }
     </style>
 </head>
@@ -103,38 +97,38 @@
                 <h1 class="text-3xl font-bold text-indigo-700 mb-4">Campanha de Oração</h1>
                 
                 <!-- Formulário da Campanha -->
-                <form id="campaign-form" class="space-y-4" aria-labelledby="form-title">
-                    <h2 id="form-title" class="sr-only">Configuração da Campanha</h2>
+                <form id="campaign-form" class="space-y-4">
                     <div>
                         <label for="purpose" class="block text-sm font-medium text-gray-700">Propósito:</label>
-                        <textarea id="purpose" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Pela família, saúde..." aria-required="true" required></textarea>
+                        <textarea id="purpose" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Pela família, saúde, emprego, agradecimentos."></textarea>
                     </div>
                     
+                    <!-- INÍCIO DA CORREÇÃO: Campos Faltando -->
                     <div>
-                        <label for="totalDays" class="block text-sm font-medium text-gray-700">Duração (em dias):</label>
-                        <input type="number" id="totalDays" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Ex: 7" aria-required="true" required>
+                        <label for="totalDays" class="block text-sm font-medium text-gray-700">Duração (dias):</label>
+                        <input type="number" id="totalDays" min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Ex: 30">
                     </div>
                     
-                    <!-- CAMPO: Data de Início -->
                     <div>
                         <label for="startDate" class="block text-sm font-medium text-gray-700">Data de Início:</label>
-                        <input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" aria-required="true" required>
+                        <input type="date" id="startDate" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     </div>
+                    <!-- FIM DA CORREÇÃO -->
                     
-                    <button type="submit" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    <button type="submit" id="save-button" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition duration-300 focus:outline-none">
                         Salvar Campanha
                     </button>
                 </form>
 
                 <!-- Exibição do Progresso -->
-                <section id="progress-display" class="mt-6 space-y-3 hidden" aria-labelledby="progress-heading">
-                    <h2 id="progress-heading" class="text-lg font-semibold text-gray-800">Progresso da Campanha</h2>
+                <div id="progress-display" class="mt-6 space-y-3 hidden">
+                    <h2 class="text-lg font-semibold text-gray-800">Progresso da Campanha</h2>
                     <div>
                         <div class="flex justify-between text-sm font-medium text-gray-600">
                             <span id="progress-text">0 de 0 dias</span>
                             <span id="progress-percent">0%</span>
                         </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5 mt-1" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso da campanha">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5 mt-1">
                             <div id="progress-bar" class="bg-emerald-500 h-2.5 rounded-full" style="width: 0%"></div>
                         </div>
                     </div>
@@ -144,28 +138,27 @@
                     <div class="text-sm text-gray-600">
                         <strong>Término:</strong> <span id="end-date-display">--</span>
                     </div>
-                </section>
+                </div>
 
                 <!-- Mensagem de carregamento/login -->
-                <div id="loading-message" class="mt-4 text-center text-gray-500" role="status" aria-live="polite">
+                <div id="loading-message" class="mt-4 text-center text-gray-500">
                     Carregando dados...
                 </div>
 
             </div>
 
             <!-- Coluna do Calendário (Direita) -->
-            <section class="md:w-2/3 p-6" aria-labelledby="calendar-title">
-                <h2 id="calendar-title" class="sr-only">Calendário de Oração</h2>
+            <div class="md:w-2/3 p-6">
                 <!-- Header do Calendário -->
-                <nav class="flex items-center justify-between mb-4" aria-label="Navegação do calendário">
+                <div class="flex items-center justify-between mb-4">
                     <button id="prev-month" aria-label="Mês anterior" class="p-2 rounded-full hover:bg-gray-100">
-                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                     </button>
                     <h2 id="month-year-header" class="text-2xl font-semibold text-gray-900"></h2>
                     <button id="next-month" aria-label="Próximo mês" class="p-2 rounded-full hover:bg-gray-100">
-                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                     </button>
-                </nav>
+                </div>
 
                 <!-- Dias da Semana -->
                 <div class="grid grid-cols-7 gap-1 mb-2">
@@ -179,10 +172,10 @@
                 </div>
 
                 <!-- Grid do Calendário -->
-                <div id="calendar-grid" class="grid grid-cols-7 gap-1 place-items-center" role="grid" aria-label="Grade do calendário">
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1 place-items-center">
                     <!-- Dias serão gerados pelo JavaScript -->
                 </div>
-            </section>
+            </div>
         </div>
     </div>
 
@@ -229,6 +222,7 @@
         const purposeInput = document.getElementById('purpose');
         const totalDaysInput = document.getElementById('totalDays');
         const startDateInput = document.getElementById('startDate'); // NOVO
+        const saveButton = document.getElementById('save-button'); // NOVO
         const progressDisplay = document.getElementById('progress-display');
         const progressText = document.getElementById('progress-text');
         const progressPercent = document.getElementById('progress-percent');
@@ -281,10 +275,10 @@
             console.log("Ouvindo o documento:", docPath);
 
             // Ouve mudanças no documento da campanha
-            onSnapshot(campaignDocRef, (doc) => {
+            onSnapshot(campaignDocRef, (docSnap) => {
                 loadingMessage.style.display = 'none';
-                if (doc.exists()) {
-                    const data = doc.data();
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
                     campaignData = {
                         purpose: data.purpose || "",
                         totalDays: data.totalDays || null,
@@ -359,12 +353,12 @@
                 const campaignEndDateClean = campaignEndDate ? new Date(campaignEndDate.getFullYear(), campaignEndDate.getMonth(), campaignEndDate.getDate()) : null;
                 const currentDateClean = new Date(year, month, day);
 
-                const isCampaignDay = campaignStartDate && 
+                const isCampaignDay = campaignStartDate && campaignEndDateClean && 
                                       currentDateClean >= campaignStartDate && 
                                       currentDateClean <= campaignEndDateClean;
 
                 if (isCampaignDay) {
-                    state = campaignData.completedDays.includes(dateStr) ? 'completed' : 'campaign';
+                    state = (campaignData.completedDays || []).includes(dateStr) ? 'completed' : 'campaign';
                 } else if (dateStr === todayStr) {
                     state = 'today';
                 }
@@ -385,47 +379,25 @@
          */
         function createDayElement(day, dateStr, isOutsideMonth, state = null) {
             const dayDiv = document.createElement('div');
-            dayDiv.className = 'calendar-day';
+            // ATUALIZADO: Classes responsivas de tamanho
+            dayDiv.className = 'calendar-day text-xs w-8 h-8 md:text-sm md:w-10 md:h-10 rounded-full';
             dayDiv.textContent = day;
-            dayDiv.setAttribute('role', 'gridcell');
 
             if (isOutsideMonth) {
                 dayDiv.classList.add('day-outside-month');
-                dayDiv.setAttribute('aria-disabled', 'true');
             } else {
                 switch(state) {
                     case 'today':
                         dayDiv.classList.add('day-today');
-                        dayDiv.setAttribute('aria-label', `Hoje, dia ${day}`);
                         break;
                     case 'campaign':
                         dayDiv.classList.add('day-campaign');
-                        dayDiv.setAttribute('aria-label', `Dia ${day} da campanha, clique para marcar como concluído`);
-                        dayDiv.setAttribute('tabindex', '0');
-                        dayDiv.setAttribute('role', 'button');
                         dayDiv.addEventListener('click', () => handleDayClick(dateStr));
-                        dayDiv.addEventListener('keydown', (e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleDayClick(dateStr);
-                            }
-                        });
                         break;
                     case 'completed':
                         dayDiv.classList.add('day-completed');
-                        dayDiv.setAttribute('aria-label', `Dia ${day} da campanha, concluído, clique para desmarcar`);
-                        dayDiv.setAttribute('tabindex', '0');
-                        dayDiv.setAttribute('role', 'button');
                         dayDiv.addEventListener('click', () => handleDayClick(dateStr));
-                        dayDiv.addEventListener('keydown', (e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleDayClick(dateStr);
-                            }
-                        });
                         break;
-                    default:
-                        dayDiv.setAttribute('aria-label', `Dia ${day}`);
                 }
             }
             return dayDiv;
@@ -436,33 +408,31 @@
          */
         function updateCampaignInfo() {
             if (campaignData.startDate) {
-                purposeInput.value = campaignData.purpose;
-                totalDaysInput.value = campaignData.totalDays;
+                purposeInput.value = campaignData.purpose || '';
+                totalDaysInput.value = campaignData.totalDays || '';
                 startDateInput.value = toISOString(campaignData.startDate); // ATUALIZADO
 
                 const total = campaignData.totalDays || 0;
-                const completed = campaignData.completedDays.length;
+                const completed = (campaignData.completedDays || []).length;
                 const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
                 progressText.textContent = `${completed} de ${total} dias`;
                 progressPercent.textContent = `${percent}%`;
                 progressBar.style.width = `${percent}%`;
                 
-                // Atualiza atributos de acessibilidade da barra de progresso
-                const progressContainer = progressBar.parentElement;
-                progressContainer.setAttribute('aria-valuenow', percent);
-                
                 startDateDisplay.textContent = campaignData.startDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
                 const endDate = getCampaignEndDate();
-                endDateDisplay.textContent = endDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                endDateDisplay.textContent = endDate ? endDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '--';
 
                 progressDisplay.classList.remove('hidden');
+                saveButton.textContent = 'Atualizar Campanha'; // NOVO
             } else {
                 // Esconde o progresso se não houver campanha
                 progressDisplay.classList.add('hidden');
                 purposeInput.value = '';
                 totalDaysInput.value = '';
                 startDateInput.value = ''; // ATUALIZADO
+                saveButton.textContent = 'Salvar Campanha'; // NOVO
             }
         }
 
@@ -491,6 +461,11 @@
                 console.warn("Propósito, Duração e Data de Início são obrigatórios.");
                 return;
             }
+
+            // NOVO: Desabilita o botão e mostra loading
+            saveButton.disabled = true;
+            const originalButtonText = saveButton.textContent;
+            saveButton.textContent = 'Salvando...';
 
             // Converte a string "YYYY-MM-DD" para um objeto Date
             // new Date(YYYY, MM-1, DD) evita problemas de fuso horário
@@ -523,6 +498,10 @@
                 console.log("Campanha salva!");
             } catch (error) {
                 console.error("Erro ao salvar campanha:", error);
+                saveButton.textContent = originalButtonText; // Restaura em caso de erro
+            } finally {
+                // O onSnapshot vai atualizar o texto, mas reabilitamos o botão
+                saveButton.disabled = false;
             }
         }
 
@@ -568,7 +547,7 @@
          * Calcula a data de término da campanha.
          */
         function getCampaignEndDate() {
-            if (!campaignData.startDate) return null;
+            if (!campaignData.startDate || !campaignData.totalDays) return null;
             
             const endDate = new Date(campaignData.startDate.getTime());
             // Adiciona (totalDays - 1) pois o startDate já conta como dia 1
