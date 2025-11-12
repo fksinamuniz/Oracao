@@ -100,7 +100,7 @@
                 <form id="campaign-form" class="space-y-4">
                     <div>
                         <label for="purpose" class="block text-sm font-medium text-gray-700">Propósito:</label>
-                        <textarea id="purpose" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Pela família, saúde, emprego, agradecimentos."></textarea>
+                        <textarea id="purpose" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Pela família, saúde..."></textarea>
                     </div>
                     
                     <!-- INÍCIO DA CORREÇÃO: Campos Faltando -->
@@ -115,7 +115,7 @@
                     </div>
                     <!-- FIM DA CORREÇÃO -->
                     
-                    <button type="submit" id="save-button" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition duration-300 focus:outline-none">
+                    <button type="submit" id="save-button" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50">
                         Salvar Campanha
                     </button>
                 </form>
@@ -152,11 +152,11 @@
                 <!-- Header do Calendário -->
                 <div class="flex items-center justify-between mb-4">
                     <button id="prev-month" aria-label="Mês anterior" class="p-2 rounded-full hover:bg-gray-100">
-                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                     </button>
                     <h2 id="month-year-header" class="text-2xl font-semibold text-gray-900"></h2>
                     <button id="next-month" aria-label="Próximo mês" class="p-2 rounded-full hover:bg-gray-100">
-                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
                     </button>
                 </div>
 
@@ -275,10 +275,10 @@
             console.log("Ouvindo o documento:", docPath);
 
             // Ouve mudanças no documento da campanha
-            onSnapshot(campaignDocRef, (docSnap) => {
+            onSnapshot(campaignDocRef, (doc) => {
                 loadingMessage.style.display = 'none';
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
+                if (doc.exists()) {
+                    const data = doc.data();
                     campaignData = {
                         purpose: data.purpose || "",
                         totalDays: data.totalDays || null,
@@ -353,12 +353,12 @@
                 const campaignEndDateClean = campaignEndDate ? new Date(campaignEndDate.getFullYear(), campaignEndDate.getMonth(), campaignEndDate.getDate()) : null;
                 const currentDateClean = new Date(year, month, day);
 
-                const isCampaignDay = campaignStartDate && campaignEndDateClean && 
+                const isCampaignDay = campaignStartDate && 
                                       currentDateClean >= campaignStartDate && 
                                       currentDateClean <= campaignEndDateClean;
 
                 if (isCampaignDay) {
-                    state = (campaignData.completedDays || []).includes(dateStr) ? 'completed' : 'campaign';
+                    state = campaignData.completedDays.includes(dateStr) ? 'completed' : 'campaign';
                 } else if (dateStr === todayStr) {
                     state = 'today';
                 }
@@ -408,12 +408,12 @@
          */
         function updateCampaignInfo() {
             if (campaignData.startDate) {
-                purposeInput.value = campaignData.purpose || '';
-                totalDaysInput.value = campaignData.totalDays || '';
+                purposeInput.value = campaignData.purpose;
+                totalDaysInput.value = campaignData.totalDays;
                 startDateInput.value = toISOString(campaignData.startDate); // ATUALIZADO
 
                 const total = campaignData.totalDays || 0;
-                const completed = (campaignData.completedDays || []).length;
+                const completed = campaignData.completedDays.length;
                 const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
                 progressText.textContent = `${completed} de ${total} dias`;
@@ -422,7 +422,7 @@
                 
                 startDateDisplay.textContent = campaignData.startDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
                 const endDate = getCampaignEndDate();
-                endDateDisplay.textContent = endDate ? endDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '--';
+                endDateDisplay.textContent = endDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 
                 progressDisplay.classList.remove('hidden');
                 saveButton.textContent = 'Atualizar Campanha'; // NOVO
@@ -547,7 +547,7 @@
          * Calcula a data de término da campanha.
          */
         function getCampaignEndDate() {
-            if (!campaignData.startDate || !campaignData.totalDays) return null;
+            if (!campaignData.startDate) return null;
             
             const endDate = new Date(campaignData.startDate.getTime());
             // Adiciona (totalDays - 1) pois o startDate já conta como dia 1
