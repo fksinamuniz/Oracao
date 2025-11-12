@@ -100,7 +100,7 @@
                 <form id="campaign-form" class="space-y-4">
                     <div>
                         <label for="purpose" class="block text-sm font-medium text-gray-700">Propósito:</label>
-                        <textarea id="purpose" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Pela família, saúde..."></textarea>
+                        <textarea id="purpose" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Pela família, saúde.[...]"></textarea>
                     </div>
                     
                     <!-- INÍCIO DA CORREÇÃO: Campos Faltando -->
@@ -115,7 +115,7 @@
                     </div>
                     <!-- FIM DA CORREÇÃO -->
                     
-                    <button type="submit" id="save-button" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50">
+                    <button type="submit" id="save-button" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition duration-300 focus:outline-none">
                         Salvar Campanha
                     </button>
                 </form>
@@ -152,11 +152,11 @@
                 <!-- Header do Calendário -->
                 <div class="flex items-center justify-between mb-4">
                     <button id="prev-month" aria-label="Mês anterior" class="p-2 rounded-full hover:bg-gray-100">
-                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
                     </button>
                     <h2 id="month-year-header" class="text-2xl font-semibold text-gray-900"></h2>
                     <button id="next-month" aria-label="Próximo mês" class="p-2 rounded-full hover:bg-gray-100">
-                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path></svg>
                     </button>
                 </div>
 
@@ -200,7 +200,16 @@
 
         // --- Configuração do Firebase (Variáveis Globais) ---
         // Estas variáveis são injetadas pelo ambiente 
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // Correção: aceitar __firebase_config tanto como string JSON quanto como objeto já-parsed.
+        let firebaseConfigRaw = (typeof __firebase_config !== 'undefined') ? __firebase_config : '{}';
+        let firebaseConfig;
+        try {
+            firebaseConfig = (typeof firebaseConfigRaw === 'string') ? JSON.parse(firebaseConfigRaw) : firebaseConfigRaw;
+        } catch (err) {
+            console.error("Erro ao parsear __firebase_config:", err);
+            firebaseConfig = {};
+        }
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-prayer-app';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -235,36 +244,58 @@
         const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
         // --- Inicialização do Firebase ---
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            setLogLevel('Debug');
-            
-            // Autenticação
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    console.log("Usuário autenticado:", userId);
-                    initializeAppData();
-                } else {
-                    // Tenta login com token customizado ou anônimo
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(auth);
+        if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+            // Se não houver configuração válida, não tentar inicializar o Firebase (evita erro de parse/inicialização)
+            console.warn("Configuração do Firebase ausente ou inválida. Entrando em modo offline.");
+            loadingMessage.textContent = "Modo offline: configuração do Firebase ausente.";
+            // Ainda assim renderiza a UI básica para que o calendário apareça
+            updateUI();
+            // Registra listeners de navegação do mês e formulário para permitir uso limitado
+            prevMonthBtn.addEventListener('click', showPrevMonth);
+            nextMonthBtn.addEventListener('click', showNextMonth);
+            campaignForm.addEventListener('submit', handleSaveCampaign);
+        } else {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('Debug');
+                
+                // Autenticação
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Usuário autenticado:", userId);
+                        initializeAppData();
+                    } else {
+                        // Tenta login com token customizado ou anônimo
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Erro na autenticação:", error);
+                            loadingMessage.textContent = "Erro ao autenticar.";
+                            // mesmo com erro de autenticação, disponibiliza UI básica
+                            updateUI();
+                            prevMonthBtn.addEventListener('click', showPrevMonth);
+                            nextMonthBtn.addEventListener('click', showNextMonth);
+                            campaignForm.addEventListener('submit', handleSaveCampaign);
                         }
-                    } catch (error) {
-                        console.error("Erro na autenticação:", error);
-                        loadingMessage.textContent = "Erro ao autenticar.";
                     }
-                }
-            });
+                });
 
-        } catch (error) {
-            console.error("Erro ao inicializar Firebase:", error);
-            loadingMessage.textContent = "Erro ao carregar o app.";
+            } catch (error) {
+                console.error("Erro ao inicializar Firebase:", error);
+                loadingMessage.textContent = "Erro ao carregar o app.";
+                // renderiza calendário mesmo se a inicialização falhar
+                updateUI();
+                prevMonthBtn.addEventListener('click', showPrevMonth);
+                nextMonthBtn.addEventListener('click', showNextMonth);
+                campaignForm.addEventListener('submit', handleSaveCampaign);
+            }
         }
 
         // --- Lógica Principal (Após Autenticação) ---
@@ -493,9 +524,21 @@
             };
 
             try {
-                // Usar setDoc (sem merge) para sobrescrever ou criar
-                await setDoc(campaignDocRef, newData);
-                console.log("Campanha salva!");
+                if (!campaignDocRef) {
+                    // Se não há referência ao Firestore (modo offline), apenas atualiza o estado local
+                    campaignData = {
+                        purpose: newData.purpose,
+                        totalDays: newData.totalDays,
+                        startDate: startDate,
+                        completedDays: newData.completedDays
+                    };
+                    updateUI();
+                    console.log("Modo offline: campanha atualizada localmente.");
+                } else {
+                    // Usar setDoc (sem merge) para sobrescrever ou criar
+                    await setDoc(campaignDocRef, newData);
+                    console.log("Campanha salva!");
+                }
             } catch (error) {
                 console.error("Erro ao salvar campanha:", error);
                 saveButton.textContent = originalButtonText; // Restaura em caso de erro
@@ -509,7 +552,17 @@
          * Marca ou desmarca um dia como concluído.
          */
         async function handleDayClick(dateStr) {
-            if (!campaignDocRef) return; // Proteção
+            if (!campaignDocRef) {
+                // Em modo offline apenas atualiza localmente
+                const completed = campaignData.completedDays || [];
+                if (completed.includes(dateStr)) {
+                    campaignData.completedDays = completed.filter(d => d !== dateStr);
+                } else {
+                    campaignData.completedDays = [...completed, dateStr];
+                }
+                updateUI();
+                return;
+            }
 
             const completed = campaignData.completedDays || [];
             let newCompletedDays;
